@@ -88,6 +88,38 @@ class APIClient {
     }
 
     /**
+     * Upload multiple document files at once
+     */
+    async uploadDocumentsBatch(files) {
+        const formData = new FormData();
+
+        // Append all files with the same field name 'files'
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        const url = `${this.baseURL}/documents/upload-batch`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                // Don't set Content-Type header - let browser set it with boundary
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ detail: 'Batch upload failed' }));
+                throw new Error(error.detail || `HTTP ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Batch upload error:', error);
+            throw error;
+        }
+    }
+
+    /**
      * List all documents
      */
     async listDocuments() {

@@ -220,6 +220,132 @@ async def upload_document_file(
     )
 
 
+@router.post("/upload-batch")
+async def upload_documents_batch(
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload multiple documents at once. Processes them sequentially."""
+    results = []
+
+    for file in files:
+        try:
+            # Read file content
+            file_content = await file.read()
+            filename_lower = file.filename.lower() if file.filename else ""
+
+            # Extract text based on file type
+            if filename_lower.endswith('.pdf'):
+                content = extract_text_from_pdf(file_content)
+                logger.info(f"Extracted {len(content)} characters from PDF: {file.filename}")
+            elif filename_lower.endswith(('.txt', '.md', '.text')):
+                content = file_content.decode('utf-8')
+            else:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": "Unsupported file type. Please upload PDF or text files."
+                })
+                continue
+
+            if not content.strip():
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": "File is empty or could not extract text"
+                })
+                continue
+
+            # Use filename as title if not provided
+            title = file.filename.rsplit('.', 1)[0] if file.filename else "Untitled Document"
+
+            # Compute content hash
+            content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+            # Check if document exists
+            existing_doc = db.query(Document).filter(Document.content_hash == content_hash).first()
+
+            if existing_doc:
+                logger.info(f"Document already exists: {existing_doc.doc_id}")
+                chunk_count = db.query(func.count(Chunk.chunk_pk)).filter(
+                    Chunk.doc_id == existing_doc.doc_id
+                ).scalar()
+                results.append({
+                    "filename": file.filename,
+                    "success": True,
+                    "doc_id": str(existing_doc.doc_id),
+                    "chunk_count": chunk_count,
+                    "existed": True
+                })
+                continue
+
+            # Create new document
+            doc = Document(
+                title=title,
+                author="",
+                year=None,
+                content_hash=content_hash,
+            )
+            db.add(doc)
+            db.flush()
+
+            logger.info(f"Created new document from file: {doc.doc_id}")
+
+            # Chunk the content
+            chunks = chunk_document(content, str(doc.doc_id))
+            logger.info(f"Created {len(chunks)} chunks for {file.filename}")
+
+            # Generate embeddings
+            embedding_service = EmbeddingService()
+            texts = [c.text for c in chunks]
+            embeddings = embedding_service.embed_texts(texts)
+
+            # Insert chunks
+            for i, chunk_schema in enumerate(chunks):
+                tsv_query = func.to_tsvector("english", chunk_schema.text)
+
+                chunk = Chunk(
+                    doc_id=doc.doc_id,
+                    chunk_id=chunk_schema.chunk_id,
+                    chunk_index=chunk_schema.chunk_index,
+                    text=chunk_schema.text,
+                    tsv=tsv_query,
+                    embedding=embeddings[i],
+                    char_start=chunk_schema.char_start,
+                    char_end=chunk_schema.char_end,
+                    text_hash=chunk_schema.text_hash,
+                    token_estimate=chunk_schema.token_estimate,
+                )
+                db.add(chunk)
+
+            db.commit()
+
+            results.append({
+                "filename": file.filename,
+                "success": True,
+                "doc_id": str(doc.doc_id),
+                "chunk_count": len(chunks),
+                "existed": False
+            })
+
+        except Exception as e:
+            logger.error(f"Error processing {file.filename}: {e}", exc_info=True)
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": str(e)
+            })
+
+    # Return summary
+    successful = sum(1 for r in results if r["success"])
+    return {
+        "total": len(files),
+        "successful": successful,
+        "failed": len(files) - successful,
+        "results": results
+    }
+
+
 @router.get("/list")
 def list_documents(db: Session = Depends(get_db)):
     """List all documents."""

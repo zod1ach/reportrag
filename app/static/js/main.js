@@ -110,29 +110,44 @@ class App {
     }
 
     /**
-     * Handle file upload
+     * Handle file upload (can be single or multiple files)
      */
-    async handleFileUpload(file) {
+    async handleFileUpload(fileOrFiles) {
         try {
-            // Store the file for later upload
-            this.selectedFile = file;
+            // Handle FileList or single File
+            const files = fileOrFiles.length !== undefined ? Array.from(fileOrFiles) : [fileOrFiles];
 
-            // Extract title from filename
-            const filename = file.name.replace(/\.[^/.]+$/, '');
-            if (!document.getElementById('title').value) {
-                document.getElementById('title').value = filename;
+            // Store the files for later upload
+            this.selectedFiles = files;
+
+            if (files.length === 1) {
+                // Single file - populate form fields
+                const file = files[0];
+                const filename = file.name.replace(/\.[^/.]+$/, '');
+                if (!document.getElementById('title').value) {
+                    document.getElementById('title').value = filename;
+                }
+
+                // For text files, show preview in content area
+                if (file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) {
+                    const content = await file.text();
+                    document.getElementById('content').value = content;
+                } else if (file.name.toLowerCase().endsWith('.pdf')) {
+                    document.getElementById('content').value = `[PDF file selected: ${file.name}]\n\nText will be extracted automatically during upload.`;
+                }
+
+                showToast(`File selected: ${file.name}`, 'success');
+            } else {
+                // Multiple files - batch upload mode
+                document.getElementById('title').value = '';
+                document.getElementById('author').value = '';
+                document.getElementById('year').value = '';
+                document.getElementById('content').value = `[${files.length} files selected for batch upload]\n\n` +
+                    files.map((f, i) => `${i + 1}. ${f.name}`).join('\n') +
+                    '\n\nClick "Upload Document" to process all files.';
+
+                showToast(`${files.length} files selected for batch upload`, 'success');
             }
-
-            // For text files, show preview in content area
-            if (file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) {
-                const content = await file.text();
-                document.getElementById('content').value = content;
-            } else if (file.name.toLowerCase().endsWith('.pdf')) {
-                // For PDFs, just show a message
-                document.getElementById('content').value = `[PDF file selected: ${file.name}]\n\nText will be extracted automatically during upload.`;
-            }
-
-            showToast(`File selected: ${file.name}`, 'success');
         } catch (error) {
             showToast(`Failed to read file: ${error.message}`, 'error');
         }
@@ -149,25 +164,45 @@ class App {
         const year = document.getElementById('year').value;
         const content = document.getElementById('content').value.trim();
 
-        if (!title) {
-            showToast('Title is required', 'error');
-            return;
-        }
-
         try {
             let result;
 
-            // If a file is selected, use file upload
-            if (this.selectedFile) {
+            // Check if multiple files are selected
+            if (this.selectedFiles && this.selectedFiles.length > 1) {
+                // Batch upload
+                showToast(`Uploading ${this.selectedFiles.length} files...`, 'info');
+                result = await window.api.uploadDocumentsBatch(this.selectedFiles);
+
+                // Show detailed results
+                const successCount = result.successful;
+                const failCount = result.failed;
+
+                if (failCount === 0) {
+                    showToast(`All ${successCount} documents uploaded successfully!`, 'success');
+                } else {
+                    showToast(`${successCount} succeeded, ${failCount} failed. Check console for details.`, 'warning');
+                    console.log('Batch upload results:', result.results);
+                }
+            } else if (this.selectedFiles && this.selectedFiles.length === 1) {
+                // Single file upload
+                if (!title) {
+                    showToast('Title is required', 'error');
+                    return;
+                }
+
                 result = await window.api.uploadDocumentFile(
-                    this.selectedFile,
+                    this.selectedFiles[0],
                     title,
                     author,
                     year
                 );
                 showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
             } else {
-                // Otherwise, use text content upload
+                // Text content upload
+                if (!title) {
+                    showToast('Title is required', 'error');
+                    return;
+                }
                 if (!content) {
                     showToast('Content is required when not uploading a file', 'error');
                     return;
@@ -184,9 +219,9 @@ class App {
                 showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
             }
 
-            // Reset form and selected file
+            // Reset form and selected files
             document.getElementById('document-form').reset();
-            this.selectedFile = null;
+            this.selectedFiles = null;
 
             // Reload documents list
             this.loadDocuments();
