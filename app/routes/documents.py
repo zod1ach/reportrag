@@ -184,27 +184,77 @@ Be concise. Extract only what's clearly stated in the document."""
                 model="google/gemini-2.0-flash-exp:free",
                 messages=[{"role": "user", "content": metadata_prompt}],
                 temperature=0.1,
-                max_tokens=200,
+                max_tokens=300,
+                json_mode=True,  # Force JSON output
             )
 
-            # Parse JSON response
-            metadata_text = metadata_response.get("content", "")
-            if "```json" in metadata_text:
-                metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in metadata_text:
-                metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+            logger.info(f"LLM metadata response (first 200 chars): {metadata_response[:200]}")
 
-            metadata = json.loads(metadata_text)
-            title = metadata.get("title", title or file.filename.rsplit('.', 1)[0])
-            author = metadata.get("author", author or "")
-            year = metadata.get("year", year)
+            # Parse JSON response with multiple fallback strategies
+            metadata_text = metadata_response
 
-            logger.info(f"Extracted metadata - Title: {title}, Author: {author}, Year: {year}")
+            # Strategy 1: Try direct JSON parse
+            try:
+                metadata = json.loads(metadata_text)
+            except json.JSONDecodeError:
+                # Strategy 2: Extract from markdown code blocks
+                if "```json" in metadata_text:
+                    metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in metadata_text:
+                    metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+
+                # Strategy 3: Try to find JSON object with regex
+                import re
+                json_match = re.search(r'\{[^}]+\}', metadata_text, re.DOTALL)
+                if json_match:
+                    metadata_text = json_match.group(0)
+
+                metadata = json.loads(metadata_text)
+
+            # Validate metadata structure
+            if not isinstance(metadata, dict):
+                raise ValueError("Metadata is not a dictionary")
+
+            # Extract and validate fields
+            extracted_title = metadata.get("title", "")
+            extracted_author = metadata.get("author", "")
+            extracted_year = metadata.get("year")
+
+            # Validate title (most important field)
+            if not extracted_title or extracted_title.strip() == "" or extracted_title == file.filename:
+                logger.warning(f"Invalid title extracted, using filename")
+                title = file.filename.rsplit('.', 1)[0] if not title else title
+            else:
+                title = extracted_title.strip()
+
+            # Validate author
+            if extracted_author:
+                author = extracted_author.strip()
+            else:
+                author = author or ""
+
+            # Validate year
+            if extracted_year:
+                try:
+                    year_int = int(extracted_year)
+                    if 1900 <= year_int <= 2100:
+                        year = year_int
+                    else:
+                        logger.warning(f"Year {year_int} out of range, setting to None")
+                        year = None
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid year format '{extracted_year}', setting to None")
+                    year = None
+
+            logger.info(f"✓ Extracted metadata - Title: '{title}', Author: '{author}', Year: {year}")
 
         except Exception as e:
-            logger.warning(f"Failed to extract metadata with LLM: {e}, using provided/filename")
+            logger.error(f"Failed to extract metadata with LLM: {e}", exc_info=True)
+            logger.warning("Using fallback: filename as title")
             if not title:
                 title = file.filename.rsplit('.', 1)[0]
+            author = author or ""
+            year = year
 
     # Compute content hash
     content_hash = hashlib.sha256(content.encode()).hexdigest()
@@ -337,27 +387,66 @@ Be concise. Extract only what's clearly stated in the document."""
                     model="google/gemini-2.0-flash-exp:free",
                     messages=[{"role": "user", "content": metadata_prompt}],
                     temperature=0.1,
-                    max_tokens=200,
+                    max_tokens=300,
+                    json_mode=True,  # Force JSON output
                 )
 
-                # Parse JSON response
-                metadata_text = metadata_response.get("content", "")
-                # Extract JSON from markdown code blocks if present
-                if "```json" in metadata_text:
-                    metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in metadata_text:
-                    metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+                logger.info(f"LLM metadata response for {file.filename} (first 200 chars): {metadata_response[:200]}")
 
-                metadata = json.loads(metadata_text)
-                title = metadata.get("title", file.filename.rsplit('.', 1)[0])
-                author = metadata.get("author", "")
-                year = metadata.get("year", None)
+                # Parse JSON response with multiple fallback strategies
+                metadata_text = metadata_response
 
-                logger.info(f"Extracted metadata - Title: {title}, Author: {author}, Year: {year}")
+                # Strategy 1: Try direct JSON parse
+                try:
+                    metadata = json.loads(metadata_text)
+                except json.JSONDecodeError:
+                    # Strategy 2: Extract from markdown code blocks
+                    if "```json" in metadata_text:
+                        metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in metadata_text:
+                        metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+
+                    # Strategy 3: Try to find JSON object with regex
+                    import re
+                    json_match = re.search(r'\{[^}]+\}', metadata_text, re.DOTALL)
+                    if json_match:
+                        metadata_text = json_match.group(0)
+
+                    metadata = json.loads(metadata_text)
+
+                # Validate metadata structure
+                if not isinstance(metadata, dict):
+                    raise ValueError("Metadata is not a dictionary")
+
+                # Extract and validate fields
+                extracted_title = metadata.get("title", "")
+                extracted_author = metadata.get("author", "")
+                extracted_year = metadata.get("year")
+
+                # Validate title
+                if not extracted_title or extracted_title.strip() == "" or extracted_title == file.filename:
+                    title = file.filename.rsplit('.', 1)[0] if file.filename else "Untitled Document"
+                else:
+                    title = extracted_title.strip()
+
+                # Validate author
+                author = extracted_author.strip() if extracted_author else ""
+
+                # Validate year
+                if extracted_year:
+                    try:
+                        year_int = int(extracted_year)
+                        year = year_int if 1900 <= year_int <= 2100 else None
+                    except (ValueError, TypeError):
+                        year = None
+                else:
+                    year = None
+
+                logger.info(f"✓ Extracted metadata for {file.filename} - Title: '{title}', Author: '{author}', Year: {year}")
 
             except Exception as e:
-                logger.warning(f"Failed to extract metadata with LLM: {e}, using filename")
-                # Fallback to filename if LLM extraction fails
+                logger.error(f"Failed to extract metadata for {file.filename}: {e}", exc_info=True)
+                logger.warning(f"Using fallback for {file.filename}")
                 title = file.filename.rsplit('.', 1)[0] if file.filename else "Untitled Document"
                 author = ""
                 year = None
