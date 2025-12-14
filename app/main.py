@@ -58,6 +58,20 @@ async def startup_event():
     global worker_thread
     logger.info("Starting application...")
 
+    # Run database migrations automatically
+    try:
+        logger.info("Running database migrations...")
+        from alembic import command
+        from alembic.config import Config
+        import os
+
+        alembic_cfg = Config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "alembic.ini"))
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations completed successfully")
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+        # Continue anyway - tables might already exist
+
     # Start worker in background thread
     worker_thread = threading.Thread(target=run_worker_loop, daemon=True)
     worker_thread.start()
