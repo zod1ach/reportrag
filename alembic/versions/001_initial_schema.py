@@ -43,7 +43,7 @@ def upgrade() -> None:
         sa.Column("chunk_index", sa.Integer, nullable=False),
         sa.Column("text", sa.Text, nullable=False),
         sa.Column("tsv", TSVECTOR),
-        sa.Column("embedding", Vector(768)),
+        sa.Column("embedding", Vector(384)),
         sa.Column("char_start", sa.Integer),
         sa.Column("char_end", sa.Integer),
         sa.Column("text_hash", sa.String(64), nullable=False),
@@ -95,9 +95,9 @@ def upgrade() -> None:
         sa.Column("run_id", UUID(as_uuid=True), sa.ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False),
         sa.Column("node_id", sa.Text, nullable=False),
         sa.Column("chunk_pk", sa.Integer, sa.ForeignKey("chunks.chunk_pk")),
-        sa.Column("fts_score", sa.Real),
-        sa.Column("vec_score", sa.Real),
-        sa.Column("score", sa.Real, nullable=False),
+        sa.Column("fts_score", sa.Float),
+        sa.Column("vec_score", sa.Float),
+        sa.Column("score", sa.Float, nullable=False),
         sa.Column("rank", sa.Integer, nullable=False),
     )
     op.create_index("idx_retrieval_run_node", "retrieval_results", ["run_id", "node_id"])
