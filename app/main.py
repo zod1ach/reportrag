@@ -58,25 +58,34 @@ async def startup_event():
     global worker_thread
     logger.info("Starting application...")
 
-    # Run database migrations automatically (synchronously, before anything else)
+    # Check if tables already exist, skip migrations if so
+    from app.database import SessionLocal
+    import sqlalchemy
+
     try:
-        logger.info("Running database migrations...")
-        from alembic import command
-        from alembic.config import Config
-        import os
-        import time
+        db = SessionLocal()
+        # Check if jobs table exists (last table created in migration)
+        result = db.execute(sqlalchemy.text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'jobs'"))
+        table_exists = result.scalar() > 0
+        db.close()
 
-        alembic_cfg = Config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "alembic.ini"))
-        command.upgrade(alembic_cfg, "head")
-        logger.info("Database migrations completed successfully")
+        if table_exists:
+            logger.info("Database tables already exist, skipping migrations")
+        else:
+            # Run database migrations
+            logger.info("Running database migrations...")
+            from alembic import command
+            from alembic.config import Config
+            import os
 
-        # Give the database a moment to finalize
-        time.sleep(2)
+            alembic_cfg = Config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "alembic.ini"))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Database migrations completed successfully")
     except Exception as e:
-        logger.error(f"Migration error: {e}")
-        logger.info("Continuing startup - tables may already exist")
+        logger.error(f"Startup database check/migration error: {e}")
+        logger.info("Continuing startup - assuming database is ready")
 
-    # Now start worker in background thread (after migrations complete)
+    # Now start worker in background thread
     logger.info("Starting background worker thread...")
     worker_thread = threading.Thread(target=run_worker_loop, daemon=True)
     worker_thread.start()

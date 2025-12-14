@@ -23,6 +23,15 @@ def upgrade() -> None:
     # Enable pgvector extension
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
+    # Check if tables already exist and skip if so
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = inspector.get_table_names()
+
+    if "documents" in existing_tables:
+        # Tables already exist, skip migration
+        return
+
     # Create documents table
     op.create_table(
         "documents",
