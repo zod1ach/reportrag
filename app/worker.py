@@ -57,7 +57,32 @@ class Worker:
         Args:
             stop_event: Optional threading.Event to signal worker to stop
         """
-        logger.info("Worker started")
+        logger.info("Worker started - waiting for database to be ready...")
+
+        # Wait for database tables to be created
+        import sqlalchemy
+        max_wait = 60  # Wait up to 60 seconds for migrations
+        waited = 0
+        while waited < max_wait:
+            try:
+                db = SessionLocal()
+                # Try to query jobs table to verify it exists
+                db.execute(sqlalchemy.text("SELECT 1 FROM jobs LIMIT 1"))
+                db.close()
+                logger.info("Database is ready, starting worker loop")
+                break
+            except Exception as e:
+                if "does not exist" in str(e):
+                    logger.info(f"Waiting for migrations to complete... ({waited}s)")
+                    time.sleep(2)
+                    waited += 2
+                else:
+                    logger.error(f"Database error: {e}")
+                    time.sleep(2)
+                    waited += 2
+
+        if waited >= max_wait:
+            logger.error("Database not ready after 60 seconds, starting anyway...")
 
         while True:
             # Check if stop signal received
