@@ -52,14 +52,8 @@ def upgrade() -> None:
     )
     op.create_index("idx_chunks_doc_id", "chunks", ["doc_id"])
     op.create_index("idx_chunks_gin_tsv", "chunks", ["tsv"], postgresql_using="gin")
-    op.create_index(
-        "idx_chunks_ivfflat_embedding",
-        "chunks",
-        ["embedding"],
-        postgresql_using="ivfflat",
-        postgresql_with={"lists": 100},
-        postgresql_ops={"embedding": "vector_cosine_ops"},
-    )
+    # Note: ivfflat index requires data to train - create it manually after uploading documents:
+    # CREATE INDEX idx_chunks_ivfflat_embedding ON chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
     op.create_index("idx_chunks_text_hash", "chunks", ["text_hash"])
 
     # Create runs table
