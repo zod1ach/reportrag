@@ -260,37 +260,62 @@ report-rag/
 ### 1. Create Railway Project
 
 1. Sign up at [railway.app](https://railway.app)
-2. Create new project
-3. Add PostgreSQL service (select pgvector template)
+2. Create new project from GitHub
+3. Select the `zod1ach/reportrag` repository
 
-### 2. Deploy API Service
+### 2. Add PostgreSQL Database
 
-1. Add new service from GitHub
-2. Set root directory: `/`
-3. Set start command: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
-4. Add environment variables from `.env.example`
-5. Set `DATABASE_URL` from Railway Postgres
+1. In your Railway project, click **+ New**
+2. Select **Database** → **PostgreSQL**
+3. Wait for provisioning
+4. Click on PostgreSQL service → **Data** tab → **Query**
+5. Run: `CREATE EXTENSION IF NOT EXISTS vector;`
 
-### 3. Deploy Worker Service
+### 3. Configure Web Service (API + Frontend)
 
-1. Add new service from same GitHub repo
-2. Set root directory: `/`
-3. Set start command: `python -m app.worker`
-4. Use same environment variables as API
+The first service Railway creates will be the web service:
 
-### 4. Run Migrations
+1. Click on the GitHub service
+2. Go to **Settings** → **Deploy**
+3. **Start Command** should be: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+   - (This is already configured in `railway.json`)
+4. Go to **Variables** tab and add:
+   - `DATABASE_URL` (copy from PostgreSQL service connection string)
+   - `OPENROUTER_API_KEY` (get from openrouter.ai)
+   - All other variables from `.env.example`
+5. Deploy
 
-In Railway console:
+### 4. Add Worker Service
 
-```bash
-alembic upgrade head
-```
+1. In your Railway project, click **+ New**
+2. Select **GitHub Repo** → choose `zod1ach/reportrag`
+3. **Important**: Go to **Settings** → **Deploy** IMMEDIATELY
+4. **Override the start command** to: `python -m app.worker`
+   - Railway will try to use the web command by default - you must override it
+5. Go to **Variables** tab and add the **same environment variables** as web service
+6. Deploy
 
-### 5. Configure Ollama (Optional)
+### 5. Run Migrations
 
-For embeddings on Railway, either:
-- Use external Ollama instance and set `OLLAMA_BASE_URL`
-- Or provide client-generated embeddings via API
+1. Click on your **Web service**
+2. Go to **Deployments** tab
+3. Click on the latest deployment
+4. Open the service console/shell
+5. Run: `alembic upgrade head`
+
+### 6. Access Your Application
+
+- Railway will provide a public URL (e.g., `https://reportrag-production.up.railway.app`)
+- Visit the URL to access the frontend UI
+- Upload documents and create report runs!
+
+### Notes
+
+- **Port Configuration**: Web service uses port 8000 (configured in `railway.json`)
+- **Worker Service**: Must manually set start command to `python -m app.worker` in Railway settings
+- **Ollama**: For embeddings, either:
+  - Use external Ollama instance and set `OLLAMA_BASE_URL`
+  - Or skip embeddings (system handles gracefully)
 
 ## Model Routing
 
