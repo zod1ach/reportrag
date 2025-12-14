@@ -51,11 +51,20 @@ class Worker:
             "assembler": FinalAssembler,
         }
 
-    def run(self):
-        """Main worker loop."""
+    def run(self, stop_event=None):
+        """Main worker loop.
+
+        Args:
+            stop_event: Optional threading.Event to signal worker to stop
+        """
         logger.info("Worker started")
 
         while True:
+            # Check if stop signal received
+            if stop_event and stop_event.is_set():
+                logger.info("Worker stop signal received")
+                break
+
             try:
                 db = SessionLocal()
                 job = self.get_next_job(db)
@@ -237,8 +246,18 @@ class Worker:
                 logger.info(f"Run {run_id} completed")
 
 
+def worker_loop(stop_event=None):
+    """Run worker loop (for use as background thread).
+
+    Args:
+        stop_event: Optional threading.Event to signal worker to stop
+    """
+    worker = Worker()
+    worker.run(stop_event=stop_event)
+
+
 def main():
-    """Entry point for worker."""
+    """Entry point for standalone worker."""
     worker = Worker()
     worker.run()
 

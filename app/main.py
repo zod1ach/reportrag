@@ -1,7 +1,9 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 import os
+import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +39,44 @@ app.add_middleware(
 # Include routers
 app.include_router(documents.router)
 app.include_router(runs.router)
+
+# Worker thread management
+worker_thread = None
+worker_stop_event = threading.Event()
+
+
+def run_worker_loop():
+    """Run the worker loop in a background thread."""
+    from app.worker import worker_loop
+    logger.info("Starting background worker thread")
+    worker_loop(worker_stop_event)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start the background worker when the app starts."""
+    global worker_thread
+    logger.info("Starting application...")
+
+    # Start worker in background thread
+    worker_thread = threading.Thread(target=run_worker_loop, daemon=True)
+    worker_thread.start()
+    logger.info("Background worker thread started")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop the background worker when the app shuts down."""
+    global worker_thread
+    logger.info("Shutting down application...")
+
+    # Signal worker to stop
+    worker_stop_event.set()
+
+    # Wait for worker thread to finish (with timeout)
+    if worker_thread and worker_thread.is_alive():
+        worker_thread.join(timeout=10)
+        logger.info("Background worker thread stopped")
 
 
 @app.get("/health")

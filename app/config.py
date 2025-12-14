@@ -9,10 +9,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # Embeddings
-    EMBED_DIM: int = 768
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "nomic-embed-text"  # or mxbai-embed-large
+    # Embeddings (HuggingFace sentence-transformers)
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # Free, fast, 384 dimensions
+    EMBED_DIM: int = 384  # Must match the model's output dimension
 
     # OpenRouter
     OPENROUTER_API_KEY: str
