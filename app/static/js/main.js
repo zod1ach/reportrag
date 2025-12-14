@@ -48,13 +48,13 @@ class App {
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (file) this.handleFileUpload(file);
+            const files = e.dataTransfer.files;
+            if (files.length > 0) this.handleFileUpload(files);
         });
 
         fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) this.handleFileUpload(file);
+            const files = e.target.files;
+            if (files.length > 0) this.handleFileUpload(files);
         });
 
         // New run button
