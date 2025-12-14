@@ -41,7 +41,7 @@ class APIClient {
     // ==================== Document Endpoints ====================
 
     /**
-     * Upload a document
+     * Upload a document (text content)
      */
     async uploadDocument(data) {
         return this.request('/documents/upsert', {
@@ -54,6 +54,37 @@ class APIClient {
                 embeddings: data.embeddings || null,
             }),
         });
+    }
+
+    /**
+     * Upload a document file (PDF or text file)
+     */
+    async uploadDocumentFile(file, title, author, year) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', title);
+        if (author) formData.append('author', author);
+        if (year) formData.append('year', year);
+
+        const url = `${this.baseURL}/documents/upload`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                // Don't set Content-Type header - let browser set it with boundary
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+                throw new Error(error.detail || `HTTP ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('File upload error:', error);
+            throw error;
+        }
     }
 
     /**

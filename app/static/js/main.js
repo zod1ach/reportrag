@@ -7,6 +7,7 @@ class App {
         this.currentTab = 'documents';
         this.currentRunId = null;
         this.pollingInterval = null;
+        this.selectedFile = null;
         this.init();
     }
 
@@ -113,16 +114,25 @@ class App {
      */
     async handleFileUpload(file) {
         try {
-            const content = await file.text();
-            document.getElementById('content').value = content;
+            // Store the file for later upload
+            this.selectedFile = file;
 
-            // Try to extract title from filename
+            // Extract title from filename
             const filename = file.name.replace(/\.[^/.]+$/, '');
             if (!document.getElementById('title').value) {
                 document.getElementById('title').value = filename;
             }
 
-            showToast(`File loaded: ${file.name}`, 'success');
+            // For text files, show preview in content area
+            if (file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) {
+                const content = await file.text();
+                document.getElementById('content').value = content;
+            } else if (file.name.toLowerCase().endsWith('.pdf')) {
+                // For PDFs, just show a message
+                document.getElementById('content').value = `[PDF file selected: ${file.name}]\n\nText will be extracted automatically during upload.`;
+            }
+
+            showToast(`File selected: ${file.name}`, 'success');
         } catch (error) {
             showToast(`Failed to read file: ${error.message}`, 'error');
         }
@@ -134,24 +144,49 @@ class App {
     async handleDocumentSubmit(e) {
         e.preventDefault();
 
-        const data = {
-            title: document.getElementById('title').value.trim(),
-            author: document.getElementById('author').value.trim(),
-            year: document.getElementById('year').value,
-            content: document.getElementById('content').value.trim(),
-        };
+        const title = document.getElementById('title').value.trim();
+        const author = document.getElementById('author').value.trim();
+        const year = document.getElementById('year').value;
+        const content = document.getElementById('content').value.trim();
 
-        if (!data.title || !data.content) {
-            showToast('Title and content are required', 'error');
+        if (!title) {
+            showToast('Title is required', 'error');
             return;
         }
 
         try {
-            const result = await window.api.uploadDocument(data);
-            showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
+            let result;
 
-            // Reset form
+            // If a file is selected, use file upload
+            if (this.selectedFile) {
+                result = await window.api.uploadDocumentFile(
+                    this.selectedFile,
+                    title,
+                    author,
+                    year
+                );
+                showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
+            } else {
+                // Otherwise, use text content upload
+                if (!content) {
+                    showToast('Content is required when not uploading a file', 'error');
+                    return;
+                }
+
+                const data = {
+                    title: title,
+                    author: author,
+                    year: year,
+                    content: content,
+                };
+
+                result = await window.api.uploadDocument(data);
+                showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
+            }
+
+            // Reset form and selected file
             document.getElementById('document-form').reset();
+            this.selectedFile = null;
 
             // Reload documents list
             this.loadDocuments();

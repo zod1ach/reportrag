@@ -27,3 +27,6 @@ tenacity==8.2.3
 
 # Numeric and vector operations
 numpy==1.26.3
+
+# PDF parsing
+pypdf==4.0.1
