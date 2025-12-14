@@ -1,6 +1,6 @@
 """Outline and retrieval result models."""
 
-from sqlalchemy import Column, ForeignKey, Index, Integer, Real, Text
+from sqlalchemy import Column, ForeignKey, Float, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.database import Base
@@ -34,9 +34,9 @@ class RetrievalResult(Base):
     run_id = Column(UUID(as_uuid=True), ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False)
     node_id = Column(Text, nullable=False)
     chunk_pk = Column(Integer, ForeignKey("chunks.chunk_pk"))
-    fts_score = Column(Real)
-    vec_score = Column(Real)
-    score = Column(Real, nullable=False)
+    fts_score = Column(Float)
+    vec_score = Column(Float)
+    score = Column(Float, nullable=False)
     rank = Column(Integer, nullable=False)
 
     __table_args__ = (Index("idx_retrieval_run_node", "run_id", "node_id"), {"schema": None})
