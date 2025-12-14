@@ -31,28 +31,16 @@
                         </svg>
                         <p>Drag and drop PDF or text files here or click to select</p>
                         <p style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">You can select multiple files at once</p>
+                        <p style="font-size: 0.85em; opacity: 0.6; margin-top: 10px;">Title, author, and year will be extracted automatically using AI</p>
                         <input type="file" id="file-input" accept=".pdf,.txt,.md" multiple hidden>
                     </div>
 
-                    <form id="document-form" class="form">
-                        <div class="form-group">
-                            <label for="title">Title *</label>
-                            <input type="text" id="title" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="author">Author</label>
-                            <input type="text" id="author">
-                        </div>
-                        <div class="form-group">
-                            <label for="year">Year</label>
-                            <input type="number" id="year" min="1900" max="2100">
-                        </div>
-                        <div class="form-group">
-                            <label for="content">Content *</label>
-                            <textarea id="content" rows="10" required placeholder="Paste or type document content here..."></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Upload Document</button>
-                    </form>
+                    <div id="selected-files-preview" style="display: none; margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                        <h3 style="margin-top: 0;">Selected Files:</h3>
+                        <div id="files-list" style="max-height: 200px; overflow-y: auto;"></div>
+                        <button id="upload-btn" class="btn btn-primary" style="margin-top: 15px;">Upload Documents</button>
+                        <button id="clear-btn" class="btn btn-secondary" style="margin-top: 15px; margin-left: 10px;">Clear Selection</button>
+                    </div>
                 </div>
             </div>
 

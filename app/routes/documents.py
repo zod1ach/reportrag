@@ -155,6 +155,57 @@ async def upload_document_file(
     if not content.strip():
         raise HTTPException(status_code=400, detail="File contains no text")
 
+    # Extract metadata using LLM if not provided
+    if not title or title == file.filename.rsplit('.', 1)[0]:
+        logger.info(f"Extracting metadata for: {file.filename}")
+        from app.services.llm_client import LLMClient
+        import json
+
+        llm_client = LLMClient()
+        content_preview = content[:3000]
+
+        metadata_prompt = f"""Extract the title, author(s), and publication year from this document.
+
+Document content:
+{content_preview}
+
+Return ONLY a JSON object with this exact format:
+{{"title": "extracted title", "author": "author name(s)", "year": 2024}}
+
+If you cannot find any field, use:
+- title: use the filename "{file.filename}"
+- author: use empty string ""
+- year: use null
+
+Be concise. Extract only what's clearly stated in the document."""
+
+        try:
+            metadata_response = llm_client.chat_completion(
+                model="google/gemini-2.0-flash-exp:free",
+                messages=[{"role": "user", "content": metadata_prompt}],
+                temperature=0.1,
+                max_tokens=200,
+            )
+
+            # Parse JSON response
+            metadata_text = metadata_response.get("content", "")
+            if "```json" in metadata_text:
+                metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in metadata_text:
+                metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+
+            metadata = json.loads(metadata_text)
+            title = metadata.get("title", title or file.filename.rsplit('.', 1)[0])
+            author = metadata.get("author", author or "")
+            year = metadata.get("year", year)
+
+            logger.info(f"Extracted metadata - Title: {title}, Author: {author}, Year: {year}")
+
+        except Exception as e:
+            logger.warning(f"Failed to extract metadata with LLM: {e}, using provided/filename")
+            if not title:
+                title = file.filename.rsplit('.', 1)[0]
+
     # Compute content hash
     content_hash = hashlib.sha256(content.encode()).hexdigest()
 
@@ -226,7 +277,11 @@ async def upload_documents_batch(
     db: Session = Depends(get_db),
 ):
     """Upload multiple documents at once. Processes them sequentially."""
+    from app.services.llm_client import LLMClient
+    import json
+
     results = []
+    llm_client = LLMClient()
 
     for file in files:
         try:
@@ -256,8 +311,56 @@ async def upload_documents_batch(
                 })
                 continue
 
-            # Use filename as title if not provided
-            title = file.filename.rsplit('.', 1)[0] if file.filename else "Untitled Document"
+            # Extract metadata using LLM
+            logger.info(f"Extracting metadata for: {file.filename}")
+
+            # Use first ~3000 chars which usually contains title, author, year
+            content_preview = content[:3000]
+
+            metadata_prompt = f"""Extract the title, author(s), and publication year from this document.
+
+Document content:
+{content_preview}
+
+Return ONLY a JSON object with this exact format:
+{{"title": "extracted title", "author": "author name(s)", "year": 2024}}
+
+If you cannot find any field, use:
+- title: use the filename "{file.filename}"
+- author: use empty string ""
+- year: use null
+
+Be concise. Extract only what's clearly stated in the document."""
+
+            try:
+                metadata_response = llm_client.chat_completion(
+                    model="google/gemini-2.0-flash-exp:free",
+                    messages=[{"role": "user", "content": metadata_prompt}],
+                    temperature=0.1,
+                    max_tokens=200,
+                )
+
+                # Parse JSON response
+                metadata_text = metadata_response.get("content", "")
+                # Extract JSON from markdown code blocks if present
+                if "```json" in metadata_text:
+                    metadata_text = metadata_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in metadata_text:
+                    metadata_text = metadata_text.split("```")[1].split("```")[0].strip()
+
+                metadata = json.loads(metadata_text)
+                title = metadata.get("title", file.filename.rsplit('.', 1)[0])
+                author = metadata.get("author", "")
+                year = metadata.get("year", None)
+
+                logger.info(f"Extracted metadata - Title: {title}, Author: {author}, Year: {year}")
+
+            except Exception as e:
+                logger.warning(f"Failed to extract metadata with LLM: {e}, using filename")
+                # Fallback to filename if LLM extraction fails
+                title = file.filename.rsplit('.', 1)[0] if file.filename else "Untitled Document"
+                author = ""
+                year = None
 
             # Compute content hash
             content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()

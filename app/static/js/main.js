@@ -29,10 +29,6 @@ class App {
             tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
 
-        // Document form
-        const docForm = document.getElementById('document-form');
-        docForm.addEventListener('submit', (e) => this.handleDocumentSubmit(e));
-
         // File input and drop zone
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
@@ -49,12 +45,21 @@ class App {
             e.preventDefault();
             dropZone.classList.remove('drag-over');
             const files = e.dataTransfer.files;
-            if (files.length > 0) this.handleFileUpload(files);
+            if (files.length > 0) this.handleFileSelection(files);
         });
 
         fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
-            if (files.length > 0) this.handleFileUpload(files);
+            if (files.length > 0) this.handleFileSelection(files);
+        });
+
+        // Upload and clear buttons
+        document.getElementById('upload-btn').addEventListener('click', () => {
+            this.uploadSelectedFiles();
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            this.clearFileSelection();
         });
 
         // New run button
@@ -110,123 +115,99 @@ class App {
     }
 
     /**
-     * Handle file upload (can be single or multiple files)
+     * Handle file selection
      */
-    async handleFileUpload(fileOrFiles) {
-        try {
-            // Handle FileList or single File
-            const files = fileOrFiles.length !== undefined ? Array.from(fileOrFiles) : [fileOrFiles];
+    handleFileSelection(fileList) {
+        const files = Array.from(fileList);
+        this.selectedFiles = files;
 
-            // Store the files for later upload
-            this.selectedFiles = files;
+        // Show preview
+        const preview = document.getElementById('selected-files-preview');
+        const filesList = document.getElementById('files-list');
 
-            if (files.length === 1) {
-                // Single file - populate form fields
-                const file = files[0];
-                const filename = file.name.replace(/\.[^/.]+$/, '');
-                if (!document.getElementById('title').value) {
-                    document.getElementById('title').value = filename;
-                }
+        filesList.innerHTML = '';
+        files.forEach((file, i) => {
+            const fileItem = document.createElement('div');
+            fileItem.style.cssText = 'padding: 8px; margin: 5px 0; background: rgba(255,255,255,0.03); border-radius: 4px; display: flex; justify-content: space-between; align-items: center;';
 
-                // For text files, show preview in content area
-                if (file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.md')) {
-                    const content = await file.text();
-                    document.getElementById('content').value = content;
-                } else if (file.name.toLowerCase().endsWith('.pdf')) {
-                    document.getElementById('content').value = `[PDF file selected: ${file.name}]\n\nText will be extracted automatically during upload.`;
-                }
+            const fileName = document.createElement('span');
+            fileName.textContent = `${i + 1}. ${file.name}`;
 
-                showToast(`File selected: ${file.name}`, 'success');
-            } else {
-                // Multiple files - batch upload mode
-                document.getElementById('title').value = '';
-                document.getElementById('author').value = '';
-                document.getElementById('year').value = '';
-                document.getElementById('content').value = `[${files.length} files selected for batch upload]\n\n` +
-                    files.map((f, i) => `${i + 1}. ${f.name}`).join('\n') +
-                    '\n\nClick "Upload Document" to process all files.';
+            const fileSize = document.createElement('span');
+            fileSize.style.opacity = '0.6';
+            fileSize.style.fontSize = '0.9em';
+            fileSize.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
 
-                showToast(`${files.length} files selected for batch upload`, 'success');
-            }
-        } catch (error) {
-            showToast(`Failed to read file: ${error.message}`, 'error');
-        }
+            fileItem.appendChild(fileName);
+            fileItem.appendChild(fileSize);
+            filesList.appendChild(fileItem);
+        });
+
+        preview.style.display = 'block';
+        showToast(`${files.length} file(s) selected`, 'success');
     }
 
     /**
-     * Handle document form submission
+     * Clear file selection
      */
-    async handleDocumentSubmit(e) {
-        e.preventDefault();
+    clearFileSelection() {
+        this.selectedFiles = null;
+        document.getElementById('file-input').value = '';
+        document.getElementById('selected-files-preview').style.display = 'none';
+        showToast('Selection cleared', 'info');
+    }
 
-        const title = document.getElementById('title').value.trim();
-        const author = document.getElementById('author').value.trim();
-        const year = document.getElementById('year').value;
-        const content = document.getElementById('content').value.trim();
+    /**
+     * Upload selected files
+     */
+    async uploadSelectedFiles() {
+        if (!this.selectedFiles || this.selectedFiles.length === 0) {
+            showToast('No files selected', 'error');
+            return;
+        }
 
         try {
-            let result;
+            const uploadBtn = document.getElementById('upload-btn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
 
-            // Check if multiple files are selected
-            if (this.selectedFiles && this.selectedFiles.length > 1) {
-                // Batch upload
-                showToast(`Uploading ${this.selectedFiles.length} files...`, 'info');
-                result = await window.api.uploadDocumentsBatch(this.selectedFiles);
+            if (this.selectedFiles.length === 1) {
+                // Single file upload - metadata will be extracted automatically
+                const file = this.selectedFiles[0];
+                const filename = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                const result = await window.api.uploadDocumentFile(
+                    file,
+                    filename,  // Use filename as placeholder, will be replaced by LLM extraction
+                    '',
+                    null
+                );
+                showToast(`Document uploaded successfully! (${result.chunk_count} chunks)`, 'success');
+            } else {
+                // Batch upload - metadata extracted for each file
+                showToast(`Uploading ${this.selectedFiles.length} files. Extracting metadata with AI...`, 'info');
+                const result = await window.api.uploadDocumentsBatch(this.selectedFiles);
 
-                // Show detailed results
                 const successCount = result.successful;
                 const failCount = result.failed;
 
                 if (failCount === 0) {
-                    showToast(`All ${successCount} documents uploaded successfully!`, 'success');
+                    showToast(`Success! All ${successCount} documents uploaded with metadata extracted.`, 'success');
                 } else {
                     showToast(`${successCount} succeeded, ${failCount} failed. Check console for details.`, 'warning');
                     console.log('Batch upload results:', result.results);
                 }
-            } else if (this.selectedFiles && this.selectedFiles.length === 1) {
-                // Single file upload
-                if (!title) {
-                    showToast('Title is required', 'error');
-                    return;
-                }
-
-                result = await window.api.uploadDocumentFile(
-                    this.selectedFiles[0],
-                    title,
-                    author,
-                    year
-                );
-                showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
-            } else {
-                // Text content upload
-                if (!title) {
-                    showToast('Title is required', 'error');
-                    return;
-                }
-                if (!content) {
-                    showToast('Content is required when not uploading a file', 'error');
-                    return;
-                }
-
-                const data = {
-                    title: title,
-                    author: author,
-                    year: year,
-                    content: content,
-                };
-
-                result = await window.api.uploadDocument(data);
-                showToast(`Document uploaded successfully (${result.chunk_count} chunks)`, 'success');
             }
 
-            // Reset form and selected files
-            document.getElementById('document-form').reset();
-            this.selectedFiles = null;
-
-            // Reload documents list
+            // Clear selection and reload
+            this.clearFileSelection();
             this.loadDocuments();
+
         } catch (error) {
-            showToast(`Failed to upload document: ${error.message}`, 'error');
+            showToast(`Upload failed: ${error.message}`, 'error');
+        } finally {
+            const uploadBtn = document.getElementById('upload-btn');
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload Documents';
         }
     }
 
