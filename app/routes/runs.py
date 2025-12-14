@@ -65,6 +65,21 @@ def create_run(
     )
 
 
+@router.get("/list")
+def list_runs(db: Session = Depends(get_db)):
+    """List all runs with basic info."""
+    runs = db.query(Run).order_by(Run.created_at.desc()).all()
+    return [
+        {
+            "run_id": str(r.run_id),
+            "topic": r.topic,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in runs
+    ]
+
+
 @router.post("/{run_id}/start", response_model=RunStartResponse)
 def start_run(
     run_id: uuid.UUID,
@@ -189,21 +204,6 @@ def get_artifacts(
         claims_summary=claims_summary,
         drafts=drafts_dict,
     )
-
-
-@router.get("/list")
-def list_runs(db: Session = Depends(get_db)):
-    """List all runs with basic info."""
-    runs = db.query(Run).order_by(Run.created_at.desc()).all()
-    return [
-        {
-            "run_id": str(r.run_id),
-            "topic": r.topic,
-            "status": r.status,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        }
-        for r in runs
-    ]
 
 
 @router.delete("/{run_id}")
