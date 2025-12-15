@@ -1,4 +1,4 @@
-"""Outline agent using Llama."""
+"""Outline agent using DeepSeek (supports JSON mode)."""
 
 import json
 import logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class OutlineAgent(BaseAgent):
     """Agent for generating hierarchical outline."""
 
-    MODEL = "meta-llama/llama-3.3-70b-instruct:free"  # Switched from Gemini to spread rate limit load
+    MODEL = "tngtech/deepseek-r1t2-chimera:free"  # DeepSeek supports JSON mode unlike Llama
 
     def _run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Generate outline from topic and documents."""

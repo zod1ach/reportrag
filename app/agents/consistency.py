@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class GlobalConsistencyAgent(BaseAgent):
     """Agent for checking global consistency."""
 
-    MODEL = "amazon/nova-2-lite-v1:free"
+    MODEL = "google/gemini-2.0-flash-exp:free"  # Gemini supports JSON mode (Nova doesn't)
 
     def _run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Check consistency across report."""

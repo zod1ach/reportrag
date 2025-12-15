@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DraftAgent(BaseAgent):
     """Agent for drafting LaTeX from claims."""
 
-    MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+    MODEL = "tngtech/deepseek-r1t2-chimera:free"  # DeepSeek supports JSON mode (Llama doesn't)
 
     def _run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Draft LaTeX content from claims."""
