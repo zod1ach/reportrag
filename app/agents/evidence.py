@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class EvidenceAgent(BaseAgent):
     """Agent for extracting validated evidence."""
 
-    MODEL = "google/gemini-2.0-flash-exp:free"
+    MODEL = "amazon/nova-2-lite-v1:free"  # Switched from Gemini to spread rate limit load
 
     def _run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Extract evidence from retrieved chunks."""

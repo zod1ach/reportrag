@@ -77,7 +77,7 @@ class LLMClient:
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=4, max=30),
+        wait=wait_exponential(multiplier=3, min=10, max=90),
         reraise=True,
     )
     def chat_completion(

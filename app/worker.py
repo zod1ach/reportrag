@@ -161,8 +161,13 @@ class Worker:
                     run.status = "failed"
                 logger.error(f"Job {job.job_id} failed after {job.retries} retries")
             else:
+                # Add cooldown delay before requeueing to avoid rate limits
+                cooldown = 60 * job.retries  # 60s, 120s, 180s based on retry count
+                logger.warning(f"Job {job.job_id} retry {job.retries}/{self.max_retries} - waiting {cooldown}s cooldown before requeue...")
+                time.sleep(cooldown)
+
                 job.status = "queued"
-                logger.warning(f"Job {job.job_id} retry {job.retries}/{self.max_retries}")
+                logger.info(f"Job {job.job_id} requeued after cooldown")
 
             db.commit()
 

@@ -338,8 +338,8 @@ async def upload_documents_batch(
     for i, file in enumerate(files):
         # Add delay between documents to avoid rate limits (except first one)
         if i > 0:
-            logger.info(f"Waiting 6 seconds before processing next document ({i+1}/{len(files)})...")
-            await asyncio.sleep(6)  # 6 second delay between documents to avoid rate limits
+            logger.info(f"Waiting 15 seconds before processing next document ({i+1}/{len(files)})...")
+            await asyncio.sleep(15)  # 15 second delay between documents to avoid rate limits
 
         logger.info(f"Processing document {i+1}/{len(files)}: {file.filename}")
         try:
