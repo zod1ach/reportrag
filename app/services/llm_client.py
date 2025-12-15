@@ -25,6 +25,7 @@ ALLOWED_MODELS = [
     "moonshotai/kimi-k2:free",
     "google/gemini-2.0-flash-exp:free",
     "amazon/nova-2-lite-v1:free",
+    "tngtech/deepseek-r1t2-chimera:free",
 ]
 
 

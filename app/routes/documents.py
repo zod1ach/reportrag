@@ -180,8 +180,9 @@ If you cannot find any field, use:
 Be concise. Extract only what's clearly stated in the document."""
 
         try:
+            logger.info(f"Calling DeepSeek to extract metadata from {file.filename}...")
             metadata_response = llm_client.chat_completion(
-                model="google/gemini-2.0-flash-exp:free",
+                model="tngtech/deepseek-r1t2-chimera:free",
                 messages=[{"role": "user", "content": metadata_prompt}],
                 temperature=0.1,
                 max_tokens=300,
@@ -337,7 +338,10 @@ async def upload_documents_batch(
     for i, file in enumerate(files):
         # Add delay between documents to avoid rate limits (except first one)
         if i > 0:
-            await asyncio.sleep(3)  # 3 second delay between documents
+            logger.info(f"Waiting 6 seconds before processing next document ({i+1}/{len(files)})...")
+            await asyncio.sleep(6)  # 6 second delay between documents to avoid rate limits
+
+        logger.info(f"Processing document {i+1}/{len(files)}: {file.filename}")
         try:
             # Read file content
             file_content = await file.read()
@@ -387,8 +391,9 @@ If you cannot find any field, use:
 Be concise. Extract only what's clearly stated in the document."""
 
             try:
+                logger.info(f"Calling DeepSeek to extract metadata from {file.filename}...")
                 metadata_response = llm_client.chat_completion(
-                    model="google/gemini-2.0-flash-exp:free",
+                    model="tngtech/deepseek-r1t2-chimera:free",
                     messages=[{"role": "user", "content": metadata_prompt}],
                     temperature=0.1,
                     max_tokens=300,
