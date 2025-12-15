@@ -156,6 +156,72 @@ def get_run_status(
     )
 
 
+@router.get("/{run_id}/progress")
+def get_detailed_progress(
+    run_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Get detailed per-section progress."""
+    run = db.query(Run).filter(Run.run_id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Get all nodes with their status
+    nodes = db.query(OutlineNode).filter(
+        OutlineNode.run_id == run_id
+    ).order_by(OutlineNode.node_pk).all()
+
+    node_progress = []
+    for node in nodes:
+        # Count retrieval results
+        chunk_count = db.query(func.count(EvidenceItem.ev_pk)).filter(
+            EvidenceItem.run_id == run_id,
+            EvidenceItem.node_id == node.node_id
+        ).scalar() or 0
+
+        # Actually get from retrieval_results table
+        from app.models.outline import RetrievalResult
+        chunk_count = db.query(func.count(RetrievalResult.result_pk)).filter(
+            RetrievalResult.run_id == run_id,
+            RetrievalResult.node_id == node.node_id
+        ).scalar() or 0
+
+        # Count evidence
+        evidence_count = db.query(func.count(EvidenceItem.ev_pk)).filter(
+            EvidenceItem.run_id == run_id,
+            EvidenceItem.node_id == node.node_id
+        ).scalar() or 0
+
+        # Count claims
+        claim_count = db.query(func.count(Claim.claim_pk)).filter(
+            Claim.run_id == run_id,
+            Claim.node_id == node.node_id
+        ).scalar() or 0
+
+        # Get draft info
+        draft = db.query(Draft).filter(
+            Draft.run_id == run_id,
+            Draft.node_id == node.node_id
+        ).first()
+
+        node_progress.append({
+            "node_id": node.node_id,
+            "title": node.title,
+            "status": node.status,
+            "chunks_retrieved": chunk_count,
+            "evidence_extracted": evidence_count,
+            "claims_generated": claim_count,
+            "draft_completed": draft is not None,
+            "draft_length": len(draft.latex) if draft else 0,
+        })
+
+    return {
+        "run_id": str(run_id),
+        "status": run.status,
+        "nodes": node_progress
+    }
+
+
 @router.get("/{run_id}/artifacts", response_model=ArtifactsResponse)
 def get_artifacts(
     run_id: uuid.UUID,

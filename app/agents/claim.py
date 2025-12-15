@@ -81,7 +81,10 @@ Each claim: {{"claim_id": "...", "claim": "...", "type": "...", "strength": "...
 
         self.db.commit()
 
-        return {"claims": [c.dict() for c in output.claims]}
+        return {
+            "claims": [c.dict() for c in output.claims],
+            "claim_count": len(output.claims)
+        }
 
     def _validate(self, result: Dict[str, Any]) -> bool:
         """Validate claims exist and have evidence."""

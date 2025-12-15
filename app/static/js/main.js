@@ -331,6 +331,7 @@ class App {
 
         try {
             const status = await window.api.getRunStatus(this.currentRunId);
+            const detailedProgress = await window.api.getDetailedProgress(this.currentRunId);
 
             // Update title
             document.getElementById('run-detail-title').textContent = status.topic;
@@ -351,6 +352,9 @@ class App {
             document.getElementById('job-counts').innerHTML = '';
             document.getElementById('job-counts').appendChild(jobCounts);
 
+            // Display detailed per-section progress
+            this.displaySectionProgress(detailedProgress.nodes);
+
             // If completed, load LaTeX
             if (status.status === 'completed') {
                 this.stopPolling();
@@ -364,6 +368,48 @@ class App {
             showToast(`Failed to load run status: ${error.message}`, 'error');
             this.stopPolling();
         }
+    }
+
+    /**
+     * Display per-section progress
+     */
+    displaySectionProgress(nodes) {
+        const container = document.getElementById('section-progress');
+        if (!container) return;
+
+        container.innerHTML = '<h3 style="margin-bottom: 1rem;">Section Progress</h3>';
+
+        nodes.forEach(node => {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid var(--primary-color);';
+
+            // Status badge
+            const statusBadge = node.status === 'drafted' ? '✓' :
+                               node.status === 'retrieved' ? '⟳' :
+                               node.status === 'pending' ? '⏳' : '○';
+
+            const statusColor = node.status === 'drafted' ? '#4ade80' :
+                               node.status === 'retrieved' ? '#60a5fa' :
+                               node.status === 'pending' ? '#fbbf24' : '#9ca3af';
+
+            sectionDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.2em; color: ${statusColor};">${statusBadge}</span>
+                        <strong>${escapeHtml(node.node_id)}: ${escapeHtml(node.title)}</strong>
+                    </div>
+                    <span class="status-badge status-${node.status}">${node.status}</span>
+                </div>
+                <div style="font-size: 0.9em; opacity: 0.8; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem;">
+                    <div>📄 Chunks: <strong>${node.chunks_retrieved}</strong></div>
+                    <div>🔍 Evidence: <strong>${node.evidence_extracted}</strong></div>
+                    <div>💡 Claims: <strong>${node.claims_generated}</strong></div>
+                    <div>✍️ Draft: <strong>${node.draft_completed ? `${node.draft_length} chars` : 'Not yet'}</strong></div>
+                </div>
+            `;
+
+            container.appendChild(sectionDiv);
+        });
     }
 
     /**

@@ -98,4 +98,10 @@ Requirements:
         self.db.merge(draft)
         self.db.commit()
 
-        return {"latex": latex, "citations": citations, "quality_flags": quality_flags}
+        return {
+            "latex": latex,
+            "citations": citations,
+            "quality_flags": quality_flags,
+            "latex_length": len(latex),
+            "citation_count": len(citations)
+        }

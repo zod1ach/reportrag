@@ -174,6 +174,13 @@ class APIClient {
     }
 
     /**
+     * Get detailed per-section progress
+     */
+    async getDetailedProgress(runId) {
+        return this.request(`/runs/${runId}/progress`);
+    }
+
+    /**
      * Get run artifacts
      */
     async getRunArtifacts(runId) {

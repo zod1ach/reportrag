@@ -93,7 +93,10 @@ Return JSON: {{"evidence_items": [...]}}
 
         self.db.commit()
 
-        return {"evidence_items": [i.dict() for i in validated_items]}
+        return {
+            "evidence_items": [i.dict() for i in validated_items],
+            "evidence_count": len(validated_items)
+        }
 
     def _validate(self, result: Dict[str, Any]) -> bool:
         """Validate we have evidence items."""

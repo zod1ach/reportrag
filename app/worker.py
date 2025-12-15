@@ -195,6 +195,10 @@ class Worker:
                 logger.info(f"Enqueued retrieval job for FIRST node: {first_node.node_id} (sequential processing - {len(nodes)} total nodes)")
 
         elif job.agent == "retrieval":
+            # Log retrieval results
+            chunk_count = result.get("chunk_count", 0)
+            logger.info(f"✓ Retrieval complete for node {job.node_id}: {chunk_count} chunks retrieved")
+
             # After retrieval, enqueue evidence
             # Small delay to avoid rate limiting
             logger.info("Waiting 3 seconds before enqueueing evidence job (rate limit protection)...")
@@ -211,6 +215,10 @@ class Worker:
             db.commit()
 
         elif job.agent == "evidence":
+            # Log evidence results
+            evidence_count = result.get("evidence_count", 0)
+            logger.info(f"✓ Evidence extraction complete for node {job.node_id}: {evidence_count} evidence items extracted")
+
             # After evidence, enqueue claim + global_memory
             # Small delay to avoid rate limiting
             logger.info("Waiting 3 seconds before enqueueing claim/memory jobs (rate limit protection)...")
@@ -235,6 +243,10 @@ class Worker:
             db.commit()
 
         elif job.agent == "claim":
+            # Log claim results
+            claim_count = result.get("claim_count", 0)
+            logger.info(f"✓ Claim generation complete for node {job.node_id}: {claim_count} claims generated")
+
             # After claim, enqueue draft
             # Small delay to avoid rate limiting
             logger.info("Waiting 3 seconds before enqueueing draft job (rate limit protection)...")
@@ -255,6 +267,11 @@ class Worker:
             db.commit()
 
         elif job.agent == "draft":
+            # Log draft results
+            latex_length = result.get("latex_length", 0)
+            citation_count = result.get("citation_count", 0)
+            logger.info(f"✓ Draft complete for node {job.node_id}: {latex_length} chars, {citation_count} citations")
+
             # Mark current node as drafted
             node = db.query(OutlineNode).filter(
                 OutlineNode.run_id == run_id,
