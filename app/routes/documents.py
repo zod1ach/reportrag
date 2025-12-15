@@ -329,11 +329,15 @@ async def upload_documents_batch(
     """Upload multiple documents at once. Processes them sequentially."""
     from app.services.llm_client import LLMClient
     import json
+    import asyncio
 
     results = []
     llm_client = LLMClient()
 
-    for file in files:
+    for i, file in enumerate(files):
+        # Add delay between documents to avoid rate limits (except first one)
+        if i > 0:
+            await asyncio.sleep(3)  # 3 second delay between documents
         try:
             # Read file content
             file_content = await file.read()
