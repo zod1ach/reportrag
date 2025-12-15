@@ -42,6 +42,7 @@ def create_run(
         model_config=data.model_config,
     )
     db.add(run)
+    db.flush()  # Flush to get the auto-generated run_id
 
     # Initialize global memory
     memory = GlobalMemory(
