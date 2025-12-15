@@ -185,11 +185,11 @@ Be concise. Extract only what's clearly stated in the document."""
                 model="tngtech/deepseek-r1t2-chimera:free",
                 messages=[{"role": "user", "content": metadata_prompt}],
                 temperature=0.1,
-                max_tokens=300,
+                max_tokens=500,  # Increased to ensure complete JSON
                 json_mode=True,  # Force JSON output
             )
 
-            logger.info(f"LLM metadata response (first 200 chars): {metadata_response[:200]}")
+            logger.info(f"LLM metadata response FULL: {metadata_response}")  # Log full response to debug
 
             # Parse JSON response with multiple fallback strategies
             metadata_text = metadata_response
@@ -396,11 +396,11 @@ Be concise. Extract only what's clearly stated in the document."""
                     model="tngtech/deepseek-r1t2-chimera:free",
                     messages=[{"role": "user", "content": metadata_prompt}],
                     temperature=0.1,
-                    max_tokens=300,
+                    max_tokens=500,  # Increased to ensure complete JSON
                     json_mode=True,  # Force JSON output
                 )
 
-                logger.info(f"LLM metadata response for {file.filename} (first 200 chars): {metadata_response[:200]}")
+                logger.info(f"LLM metadata response for {file.filename} FULL: {metadata_response}")  # Log full response
 
                 # Parse JSON response with multiple fallback strategies
                 metadata_text = metadata_response
