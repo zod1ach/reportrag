@@ -174,27 +174,32 @@ class Worker:
         run_id = job.run_id
 
         if job.agent == "outline":
-            # After outline, enqueue retrieval for each node
+            # After outline, enqueue retrieval for ONLY THE FIRST NODE (sequential processing)
             nodes = db.query(OutlineNode).filter(
                 OutlineNode.run_id == run_id,
                 OutlineNode.status == "pending",
-            ).all()
+            ).order_by(OutlineNode.node_pk).all()
 
-            for node in nodes:
+            if nodes:
+                # Only enqueue the first node
+                first_node = nodes[0]
                 retrieval_job = Job(
                     run_id=run_id,
-                    node_id=node.node_id,
+                    node_id=first_node.node_id,
                     agent="retrieval",
                     status="queued",
-                    payload={"run_id": str(run_id), "node_id": node.node_id},
+                    payload={"run_id": str(run_id), "node_id": first_node.node_id},
                 )
                 db.add(retrieval_job)
-
-            db.commit()
-            logger.info(f"Enqueued {len(nodes)} retrieval jobs")
+                db.commit()
+                logger.info(f"Enqueued retrieval job for FIRST node: {first_node.node_id} (sequential processing - {len(nodes)} total nodes)")
 
         elif job.agent == "retrieval":
             # After retrieval, enqueue evidence
+            # Small delay to avoid rate limiting
+            logger.info("Waiting 3 seconds before enqueueing evidence job (rate limit protection)...")
+            time.sleep(3)
+
             evidence_job = Job(
                 run_id=run_id,
                 node_id=job.node_id,
@@ -207,6 +212,10 @@ class Worker:
 
         elif job.agent == "evidence":
             # After evidence, enqueue claim + global_memory
+            # Small delay to avoid rate limiting
+            logger.info("Waiting 3 seconds before enqueueing claim/memory jobs (rate limit protection)...")
+            time.sleep(3)
+
             claim_job = Job(
                 run_id=run_id,
                 node_id=job.node_id,
@@ -227,6 +236,10 @@ class Worker:
 
         elif job.agent == "claim":
             # After claim, enqueue draft
+            # Small delay to avoid rate limiting
+            logger.info("Waiting 3 seconds before enqueueing draft job (rate limit protection)...")
+            time.sleep(3)
+
             draft_job = Job(
                 run_id=run_id,
                 node_id=job.node_id,
@@ -242,25 +255,57 @@ class Worker:
             db.commit()
 
         elif job.agent == "draft":
-            # Check if all nodes drafted
-            total_nodes = db.query(OutlineNode).filter(OutlineNode.run_id == run_id).count()
-            drafted_nodes = (
-                db.query(OutlineNode)
-                .filter(OutlineNode.run_id == run_id, OutlineNode.status == "drafted")
-                .count()
-            )
-
-            # After all drafts, enqueue assembler
-            if drafted_nodes == total_nodes:
-                assembler_job = Job(
-                    run_id=run_id,
-                    agent="assembler",
-                    status="queued",
-                    payload={"run_id": str(run_id)},
-                )
-                db.add(assembler_job)
+            # Mark current node as drafted
+            node = db.query(OutlineNode).filter(
+                OutlineNode.run_id == run_id,
+                OutlineNode.node_id == job.node_id
+            ).first()
+            if node:
+                node.status = "drafted"
                 db.commit()
-                logger.info("All nodes drafted, enqueued assembler job")
+                logger.info(f"Marked node {job.node_id} as drafted")
+
+            # SEQUENTIAL PROCESSING: Check if there are more pending nodes to process
+            next_pending_node = db.query(OutlineNode).filter(
+                OutlineNode.run_id == run_id,
+                OutlineNode.status == "pending"
+            ).order_by(OutlineNode.node_pk).first()
+
+            if next_pending_node:
+                # Enqueue retrieval for NEXT node (one by one sequential processing)
+                # Small delay before starting next section to avoid rate limiting
+                logger.info(f"Waiting 5 seconds before starting next section: {next_pending_node.node_id} (rate limit protection)...")
+                time.sleep(5)
+
+                retrieval_job = Job(
+                    run_id=run_id,
+                    node_id=next_pending_node.node_id,
+                    agent="retrieval",
+                    status="queued",
+                    payload={"run_id": str(run_id), "node_id": next_pending_node.node_id},
+                )
+                db.add(retrieval_job)
+                db.commit()
+                logger.info(f"Enqueued retrieval for NEXT node: {next_pending_node.node_id} (sequential processing - avoiding rate limits)")
+            else:
+                # No more pending nodes - check if all nodes are drafted
+                total_nodes = db.query(OutlineNode).filter(OutlineNode.run_id == run_id).count()
+                drafted_nodes = db.query(OutlineNode).filter(
+                    OutlineNode.run_id == run_id,
+                    OutlineNode.status == "drafted"
+                ).count()
+
+                if drafted_nodes == total_nodes:
+                    # All nodes drafted sequentially, enqueue assembler
+                    assembler_job = Job(
+                        run_id=run_id,
+                        agent="assembler",
+                        status="queued",
+                        payload={"run_id": str(run_id)},
+                    )
+                    db.add(assembler_job)
+                    db.commit()
+                    logger.info("All nodes drafted sequentially, enqueued assembler job")
 
         elif job.agent == "assembler":
             # Mark run as completed
