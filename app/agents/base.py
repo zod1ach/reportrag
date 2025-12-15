@@ -1,6 +1,7 @@
 """Base agent with retry and validation logic."""
 
 import logging
+import time
 from typing import Any, Dict
 
 from app.services.llm_client import LLMClient
@@ -33,6 +34,10 @@ class BaseAgent:
         for attempt in range(max_retries):
             try:
                 logger.info(f"Agent {self.__class__.__name__} attempt {attempt + 1}/{max_retries}")
+
+                # Refresh database session to see recently committed data
+                self.db.expire_all()
+
                 result = self._run(payload)
 
                 if self._validate(result):
@@ -45,6 +50,11 @@ class BaseAgent:
                 logger.error(f"Agent {self.__class__.__name__} error: {str(e)}")
                 if attempt == max_retries - 1:
                     raise
+
+                # Add delay before retrying to avoid rapid-fire requests
+                delay = 30 * (attempt + 1)  # 30s, 60s delays
+                logger.warning(f"Agent {self.__class__.__name__} waiting {delay}s before retry {attempt + 2}...")
+                time.sleep(delay)
 
         raise ValueError(f"Agent {self.__class__.__name__} failed after {max_retries} retries")
 
